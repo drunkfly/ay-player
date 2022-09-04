@@ -19,7 +19,7 @@ typedef struct Channel
     signed char PT3_CHP_CrEnSl;
     unsigned char PT3_CHP_TSlCnt;
     unsigned short PT3_CHP_CrTnSl;
-    const unsigned char* PT3_CHP_TnAcc;
+    unsigned short PT3_CHP_TnAcc;
     unsigned char PT3_CHP_COnOff;
     unsigned char PT3_CHP_OnOffD;
     unsigned char PT3_CHP_OffOnD;       // IX for PTDECOD here (+12)
@@ -45,7 +45,7 @@ const unsigned char* PT3_AdInPtA;
 const unsigned char* PT3_AdInPtB;
 const unsigned char* PT3_AdInPtC;
 
-const unsigned char* PT3_SamPtrs;
+const unsigned short* PT3_SamPtrs;
 unsigned char PT3_PrNote;
 unsigned short PT3_PrSlide;
 unsigned char PT3_delayValue;
@@ -160,7 +160,7 @@ void PT3_init(const unsigned char* data)
     unsigned short offset = *(IX+103-100) | (*(IX+104-100) << 8);
     PT3_PatsPtr = (unsigned short*)(PT3_MODADDR + offset);
     PT3_OrnPtrs = (unsigned short*)(PT3_MODADDR + 169);
-    PT3_SamPtrs = PT3_MODADDR + 195;
+    PT3_SamPtrs = (unsigned short*)(PT3_MODADDR + 105);
 
     /*
                 ;
@@ -174,9 +174,12 @@ void PT3_init(const unsigned char* data)
     PT3_DelyCnt = 1;
 
     // H - CHP.Volume, L - CHP.NtSkCn
-    PT3_ChanA.PT3_CHP_NtSkCn = 0xf001;
-    PT3_ChanB.PT3_CHP_NtSkCn = 0xf001;
-    PT3_ChanC.PT3_CHP_NtSkCn = 0xf001;
+    PT3_ChanA.PT3_CHP_NtSkCn = 0x01;
+    PT3_ChanA.PT3_CHP_Volume = 0xf0;
+    PT3_ChanB.PT3_CHP_NtSkCn = 0x01;
+    PT3_ChanB.PT3_CHP_Volume = 0xf0;
+    PT3_ChanC.PT3_CHP_NtSkCn = 0x01;
+    PT3_ChanC.PT3_CHP_Volume = 0xf0;
 
     PT3_AdInPtA = PT3_EMPTYSAMORN;     // ptr to zero
     PT3_ChanA.PT3_CHP_OrnPtr = PT3_EMPTYSAMORN; // ornament 0 is "0,1,0"
@@ -220,7 +223,7 @@ exit(0); // REMOVEME
                 PT3_currentPos = HL;
                 a = *HL;
 
-                const unsigned short* hl = &PT3_PatsPtr[*HL + a * 256];
+                const unsigned short* hl = &PT3_PatsPtr[a];
                 PT3_AdInPtA = PT3_MODADDR + *hl++;
                 PT3_AdInPtB = PT3_MODADDR + *hl++;
                 PT3_AdInPtC = PT3_MODADDR + *hl++;
@@ -246,7 +249,7 @@ exit(0); // REMOVEME
     PT3_CHREGS(&AY.amplB, &AY.tonB, &PT3_ChanB);
     PT3_CHREGS(&AY.amplC, &AY.tonC, &PT3_ChanC);
 
-    AY.noise = PT3_AddToNs + PT3_Noise_Base;
+    AY.noise = PT3_AddToNs + 0xc0 + PT3_Noise_Base;
     AY.env = PT3_CurESld + AY.envBase + PT3_AddToEn;
 
     if (PT3_CurEDel == 0)
@@ -445,6 +448,7 @@ void PT3_PTDECOD(const unsigned char** pOffset, Channel* ix)
             goto PT3_PD_SAM;
         }
         if (a == 0xd0) {    /* end line */
+          PD_FIN:
             ix->PT3_CHP_NtSkCn = ix->PT3_CHP_NNtSkp;
             doStack(stack, stackSize, pOffset, ix);
             return;
@@ -457,18 +461,16 @@ void PT3_PTDECOD(const unsigned char** pOffset, Channel* ix)
             ix->PT3_CHP_Flags &= 0xfe;
           PT3_PD_RES:
             ix->PT3_CHP_OffOnD = 0;
-            ix->PT3_CHP_OrnPtr = 0;
-            ix->PT3_CHP_SamPtr = 0;
-            ix->PT3_CHP_NNtSkp = 0;
-            ix->PT3_CHP_Note = 0;
-            ix->PT3_CHP_SlToNt = 0;
-            ix->PT3_CHP_Env_En = 0;
-            ix->PT3_CHP_Flags = 0;
-            ix->PT3_CHP_TnSlDl = 0;
-            ix->PT3_CHP_TSlStp &= 0xff00;
-            PT3_C_PORTM(pOffset, ix);
-            doStack(stack, stackSize, pOffset, ix);
-            return;
+            ix->PT3_CHP_OnOffD = 0;
+            ix->PT3_CHP_COnOff = 0;
+            ix->PT3_CHP_TnAcc = 0;
+            ix->PT3_CHP_CrTnSl = 0;
+            ix->PT3_CHP_TSlCnt = 0;
+            ix->PT3_CHP_CrEnSl = 0;
+            ix->PT3_CHP_CrNsSl = 0;
+            ix->PT3_CHP_CrAmSl = 0;
+            ix->PT3_CHP_PsInSm = 0;
+            goto PD_FIN;
         }
         if (a > 0xc0) {     /* volume */
             a -= 0xc0;
@@ -548,8 +550,6 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
             a = 0;
         if (a > 95)
             a = 95;
-        a *= 2;
-        signed char aa = a;
 
         SP = ix->PT3_CHP_SamPtr;
         E = *SP++;
@@ -559,7 +559,7 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
         A *= 4;
         SP += A;
 
-        A = ix->PT3_CHP_PsInSm;
+        A = B;
         ++A;
         if (A >= D)
             A = E;
@@ -571,11 +571,12 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
         unsigned char L = *SP++;
         unsigned char H = *SP++;
 
-        HL = (L + H * 256) + ix->PT3_CHP_TnAcc;
+        unsigned short HL_ = (L + H * 256) + ix->PT3_CHP_TnAcc;
         if (B & 0x40)
-            ix->PT3_CHP_TnAcc = HL;
+            ix->PT3_CHP_TnAcc = HL_;
 
-        unsigned short hl_ = NoteTable[aa];
+        unsigned short hl_ = NoteTable[a];
+        hl_ += HL_;
         hl_ += ix->PT3_CHP_CrTnSl;
         *PT3_TonA_HL = hl_;
 
@@ -632,7 +633,7 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
             a = 0;
         if (a > 15)
             a = 15;
-        A = VolumeTable[a + ix->PT3_CHP_Volume];
+        A = VolumeTable[a | ix->PT3_CHP_Volume];
         if ((C & 1) == 0)
             A |= ix->PT3_CHP_Env_En;
         *ampl = A;
