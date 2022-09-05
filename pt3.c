@@ -648,7 +648,7 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
             PT3_AddToEn += a;   // BUG IN PT3 - NEED WORD HERE. FIX IT IN NEXT VERSION?
         } else {
             A >>= 1;    // rra
-            a += ix->PT3_CHP_CrNsSl;
+            A += ix->PT3_CHP_CrNsSl;
             PT3_AddToNs = A;
             if ((B & 0x20) != 0)
                 ix->PT3_CHP_CrNsSl = A;
@@ -668,6 +668,7 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
     if (ix->PT3_CHP_COnOff != 0)
         return;
 
+    A = 0;
     A ^= ix->PT3_CHP_Flags;
     ix->PT3_CHP_Flags = A;
 
