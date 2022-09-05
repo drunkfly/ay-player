@@ -162,14 +162,12 @@ void PT3_init(const unsigned char* data)
     PT3_OrnPtrs = (unsigned short*)(PT3_MODADDR + 169);
     PT3_SamPtrs = (unsigned short*)(PT3_MODADDR + 105);
 
-    /*
-                ;
-                ld      hl, PT3_VARS
-                ld      (hl), a
-                ld      de, PT3_VARS + 1
-                ld      bc, PT3_VARSEND - PT3_VARS - 1
-                ldir
-    */
+    memset(&PT3_ChanA, 0, sizeof(PT3_ChanA));
+    memset(&PT3_ChanB, 0, sizeof(PT3_ChanB));
+    memset(&PT3_ChanC, 0, sizeof(PT3_ChanC));
+    PT3_DelyCnt = 0;
+    PT3_CurEDel = 0;
+    memset(&AY, 0, sizeof(AY));
 
     PT3_DelyCnt = 1;
 
@@ -289,7 +287,7 @@ void PT3_C_GLISS(const unsigned char** pOffset, Channel* ix)
 
 void PT3_C_PORTM(const unsigned char** pOffset, Channel* ix)
 {
-    ix->PT3_CHP_Flags &= ~0x40;
+    ix->PT3_CHP_Flags &= ~4;
 
     unsigned char A = **pOffset;
     ++*pOffset;
@@ -401,6 +399,7 @@ static void doStack(unsigned char* stack, int stackSize,
             case 7: PT3_C_NOP(); break;
             case 8: PT3_C_ENGLS(pOffset, ix); break;
             case 9: PT3_C_DELAY(pOffset, ix); break;
+            default: assert(0);
         }
     }
 }
@@ -509,7 +508,7 @@ void PT3_PTDECOD(const unsigned char** pOffset, Channel* ix)
             a -= 0x10;
             ix->PT3_CHP_Env_En = a;
             ix->PT3_CHP_PsInOr = a;
-            if (a != 0x10)
+            if (a != 0)
                 PT3_SETENV(ix, pOffset, a);
             a = **pOffset;
             ++*pOffset;
