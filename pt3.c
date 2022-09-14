@@ -99,50 +99,6 @@ static const unsigned short NoteTable[] = {
     0x01a,0x019,0x017,0x016,0x015,0x014,0x012,0x011,0x010,0x00f,0x00e,0x00d,
 };
 
-void WriteAY()
-{
-    // REMOVEME -->
-
-    static int count = 0;
-
-    if (out == NULL)
-        out = fopen("output.ay", "w");
-
-    fprintf(stdout,
-            "BUL %04X %04X %04X %02X %02X %02X %02X %02X %04X %02X %04X\n",
-            AY.tonA, AY.tonB, AY.tonC, AY.noise, AY.mixer,
-            AY.amplA, AY.amplB, AY.amplC, AY.env, AY.envTp, AY.envBase
-            );
-
-    if (count++ > 10000) {
-        fclose(out);
-        exit(0);
-    }
-
-    // <-- REMOVEME
-
-    /*
-PT3_WriteAY:    xor     a
-PT3_ROUT_A0:    ld      de, 0xffbf
-                ld      bc, 0xfffd
-                ld      hl, PT3_AYREGS
-PT3_LOUT:       out     (c), a
-                ld      b, e
-                outi
-                ld      b, d
-                inc     a
-                cp      13
-                jr      nz, PT3_LOUT
-                out     (c), a
-                ld      a, (hl)
-                and     a
-                ret     m
-                ld      b, e
-                out     (c), a
-                ret
-    */
-}
-
 void PT3_init(const unsigned char* data)
 {
     PT3_MODADDR = data;
@@ -186,7 +142,7 @@ void PT3_init(const unsigned char* data)
     PT3_ChanA.PT3_CHP_SamPtr = PT3_EMPTYSAMORN;
     PT3_ChanB.PT3_CHP_SamPtr = PT3_EMPTYSAMORN;
     PT3_ChanC.PT3_CHP_SamPtr = PT3_EMPTYSAMORN;
-    WriteAY();
+    //WriteAY();
 }
 
 void PT3_mute()
@@ -194,7 +150,7 @@ void PT3_mute()
     AY.amplA = 0;
     AY.amplB = 0;
     AY.mixer = 0x3f;
-    WriteAY();
+    //WriteAY();
 }
 
 void PT3_PTDECOD(const unsigned char** pOffset, Channel* ix);
@@ -247,8 +203,8 @@ exit(0); // REMOVEME
     PT3_CHREGS(&AY.amplB, &AY.tonB, &PT3_ChanB);
     PT3_CHREGS(&AY.amplC, &AY.tonC, &PT3_ChanC);
 
-    AY.noise = PT3_AddToNs + 0xc0 + PT3_Noise_Base;
-    AY.env = PT3_CurESld + AY.envBase + PT3_AddToEn;
+    AY.noise = (PT3_AddToNs + PT3_Noise_Base) & 0x1f;
+    AY.env = (PT3_CurESld + AY.envBase + PT3_AddToEn) & 0x0fff;
 
     if (PT3_CurEDel == 0)
         return;
@@ -459,7 +415,6 @@ void PT3_PTDECOD(const unsigned char** pOffset, Channel* ix)
         if (a == 0xc0) {    /* pause + end line */
             ix->PT3_CHP_Flags &= 0xfe;
           PT3_PD_RES:
-            ix->PT3_CHP_OffOnD = 0;
             ix->PT3_CHP_OnOffD = 0;
             ix->PT3_CHP_COnOff = 0;
             ix->PT3_CHP_TnAcc = 0;
@@ -469,6 +424,7 @@ void PT3_PTDECOD(const unsigned char** pOffset, Channel* ix)
             ix->PT3_CHP_CrNsSl = 0;
             ix->PT3_CHP_CrAmSl = 0;
             ix->PT3_CHP_PsInSm = 0;
+            ix->PT3_CHP_PsInOr = 0;
             goto PD_FIN;
         }
         if (a > 0xc0) {     /* volume */
@@ -577,7 +533,7 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
         unsigned short hl_ = NoteTable[a];
         hl_ += HL_;
         hl_ += ix->PT3_CHP_CrTnSl;
-        *PT3_TonA_HL = hl_;
+        *PT3_TonA_HL = hl_ & 0x0fff;
 
         if (ix->PT3_CHP_TSlCnt == 0)
             goto PT3_CH_AMP;
@@ -635,7 +591,7 @@ void PT3_CHREGS(unsigned char* ampl, unsigned short* PT3_TonA_HL, Channel* ix)
         A = VolumeTable[a | ix->PT3_CHP_Volume];
         if ((C & 1) == 0)
             A |= ix->PT3_CHP_Env_En;
-        *ampl = A;
+        *ampl = A & 0x1f;
         A = C;
         if ((B & 0x80) != 0) {
             a = (signed char)A;
