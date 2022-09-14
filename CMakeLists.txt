@@ -6,4 +6,5 @@ add_executable(DrunkPlayer
     volutar/pt3player.h
     main.c
     pt3.c
+    pt3.h
     )
